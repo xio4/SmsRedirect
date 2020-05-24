@@ -1,5 +1,7 @@
 package com.xio4.smsredirect;
 
+import android.util.Log;
+
 import java.util.Properties;
 import javax.mail.Message;
 import javax.mail.MessagingException;
@@ -8,6 +10,8 @@ import javax.mail.Session;
 import javax.mail.Transport;
 import javax.mail.internet.InternetAddress;
 import javax.mail.internet.MimeMessage;
+
+import static com.xio4.smsredirect.Constants.LOG_TAG;
 
 public class SendMailSync {
     public SendMailSync(final String srcEmail, final String srcPassword, String email, String subject, String message){
@@ -38,8 +42,8 @@ public class SendMailSync {
             mm.setText(message);
             Transport.send(mm);
         }
-        catch (
-                MessagingException e) {
+        catch (MessagingException e) {
+            Log.e(LOG_TAG, "Received an exception", e);
             e.printStackTrace();
         }
     }

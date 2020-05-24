@@ -8,14 +8,15 @@ import android.Manifest;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
+import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.database.Cursor;
-import android.net.Uri;
 import android.os.Bundle;
 import android.util.Base64;
 import android.view.View;
+import android.widget.Button;
 import android.widget.Toast;
 
+import java.io.Serializable;
 import java.security.InvalidKeyException;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
@@ -23,17 +24,13 @@ import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.SecureRandom;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Timer;
-import java.util.TimerTask;
+import java.util.HashMap;
+import java.util.Map;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
 
-import static com.xio4.smsredirect.Utils.RSAEncryptToBase64;
-import static com.xio4.smsredirect.Utils.getDate;
 import static com.xio4.smsredirect.Utils.getTextFromEditText;
 import static com.xio4.smsredirect.Utils.keysMatch;
 import static com.xio4.smsredirect.Utils.loadValueByKey;
@@ -43,17 +40,17 @@ import static com.xio4.smsredirect.Utils.stringToPrivateKey;
 import static com.xio4.smsredirect.Utils.stringToPublicKey;
 
 public class MainActivity extends AppCompatActivity {
-    public static final String INBOX = "content://sms/inbox";
     public static final int SMS_PERMISSIONS = 1;
-    public static final int TIMER_PERIOD = 5000;
-    private Timer timer;
-    private TimerTask timerTask;
+    private boolean started;
+    private Map<Integer, String> settings;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        this.started = false;
         checkPermissions();
         setContentView(R.layout.activity_main);
+        this.settings = new HashMap<>();
 
         this.loadSettings();
 
@@ -78,37 +75,6 @@ public class MainActivity extends AppCompatActivity {
         } catch (NoSuchPaddingException e) {
             e.printStackTrace();
         }
-
-        runTimer();
-    }
-
-    protected void runTimer() {
-        timer = new Timer();
-        timerTask = new TimerTask() {
-            public void run() {
-                try {
-                    if (isReady()) {
-                        send();
-                    }
-                } catch (InvalidKeyException e) {
-                    e.printStackTrace();
-                } catch (BadPaddingException e) {
-                    e.printStackTrace();
-                } catch (NoSuchAlgorithmException e) {
-                    e.printStackTrace();
-                } catch (IllegalBlockSizeException e) {
-                    e.printStackTrace();
-                } catch (NoSuchPaddingException e) {
-                    e.printStackTrace();
-                }
-            }
-        };
-
-        timer.schedule(this.timerTask, TIMER_PERIOD, TIMER_PERIOD); //тикаем каждую секунду без задержки
-    }
-
-    protected void stopTimer() {
-        this.timer.cancel();
     }
 
     protected void checkPermissions() {
@@ -160,113 +126,38 @@ public class MainActivity extends AppCompatActivity {
         setTextToEditText(this, R.id.editTextPublicKey, Base64.encodeToString(publicKey.getEncoded(), 0, publicKey.getEncoded().length, Base64.DEFAULT));
     }
 
-    public String formatSubject(SmsItem item) {
-        return String.format("SMS N:%s S:%s %s", item.get("name"), item.get("serviceCenter"), getDate(item.get("date"), Constants.DATE_TIME_FORMAT));
+    private void loadValue(int id, int key) {
+        String value = loadValueByKey(this, key);
+        this.settings.put(key, value);
+
+        setTextToEditText(this, id, value);
     }
 
-    // TODO: Needs refactor
-    protected List<SmsItem> readSMS() {
-        Cursor cursor = getContentResolver().query(Uri.parse(INBOX), null, null, null, null);
-        String lastId = loadValueByKey(this, R.string.last_sent);
-        List<SmsItem> smsList = new ArrayList<>();
+    private void saveValue(int key, String value) {
+        this.settings.put(key, value);
 
-        SmsItem smsItem = null;
-        int fill = 0;
-        boolean finish = false;
-
-        if (cursor.moveToFirst()) { // must check the result to prevent exception
-            do {
-                for (int idx = 0; idx < cursor.getColumnCount(); idx++) {
-                    String key = cursor.getColumnName(idx);
-                    String value = cursor.getString(idx);
-
-                    if (fill == 0) {
-                        smsItem = new SmsItem();
-                    }
-
-                    if (Constants.SMS_KEYS.containsKey(key)) {
-                        smsItem.put((String)Constants.SMS_KEYS.get(key), value);
-                        fill++;
-                    }
-
-                    if (key.equals("_id")) {
-                        if (lastId.equals(value)) {
-                            finish = true;
-                            break;
-                        }
-                    }
-
-                    if (fill == 5) {
-                        fill = 0;
-                        smsList.add(smsItem);
-                        break;
-                    }
-                }
-            } while (!finish && cursor.moveToNext());
-        } else {
-            // empty box, no SMS
-        }
-
-        if (smsList.size() > 0) {
-            saveKeyValue(this, R.string.last_sent, smsList.get(smsList.size() - 1).get("id"));
-        }
-
-        return smsList;
-    }
-
-    protected void send() throws IllegalBlockSizeException, InvalidKeyException, BadPaddingException, NoSuchAlgorithmException, NoSuchPaddingException {
-        stopTimer();
-
-        String[] emails = this.getEmails();
-        List<SmsItem> smsList = this.readSMS();
-
-        if (!smsList.isEmpty()) {
-            SmsItem smsItem = smsList.get(smsList.size() - 1);
-            String subject = this.formatSubject(smsItem);
-            String encryptedData = RSAEncryptToBase64(smsItem.get("body"), stringToPublicKey(this.getPublicKey()));
-
-            for (String email : emails) {
-                new SendMailSync(
-                        this.getEmailSource(),
-                        this.getEmailPassword(),
-                        email,
-                        subject,
-                        encryptedData
-                );
-            }
-
-            if (!this.getBotToken().isEmpty() && !this.getBotChatId().isEmpty()) {
-                // To get chatId
-                // https://api.telegram.org/bot123456789:jbd78sadvbdy63d37gda37bd8/getUpdates
-                new TelegramBot(this.getBotToken(), this.getBotChatId()).sendToTelegram(String.format("%s\n %s", this.formatSubject(smsItem), encryptedData));
-            }
-        }
-
-        runTimer();
-    }
-
-    protected boolean isReady() {
-        return !this.getEmailPassword().isEmpty() && !this.getEmailSource().isEmpty() && this.getEmails().length > 0 && !this.getPublicKey().isEmpty() && !this.getPrivateKey().isEmpty();
+        saveKeyValue(this, key, value);
     }
 
     protected void loadSettings() {
-        setTextToEditText(this, R.id.editTextEmails, loadValueByKey(this, R.string.emails));
-        setTextToEditText(this, R.id.editTextEmailSrc, loadValueByKey(this, R.string.email_source));
-        setTextToEditText(this, R.id.editTextEmailPassword, loadValueByKey(this, R.string.email_password));
-        setTextToEditText(this, R.id.editTextPrivateKey, loadValueByKey(this, R.string.private_key));
-        setTextToEditText(this, R.id.editTextPublicKey, loadValueByKey(this, R.string.public_key));
-        setTextToEditText(this, R.id.editTextBotToken, loadValueByKey(this, R.string.bot_token));
-        setTextToEditText(this, R.id.editTextBotChatId, loadValueByKey(this, R.string.bot_chat_id));
+        loadValue(R.id.editTextEmails, R.string.emails);
+        loadValue(R.id.editTextEmails, R.string.emails);
+        loadValue(R.id.editTextEmailSrc, R.string.email_source);
+        loadValue(R.id.editTextEmailPassword, R.string.email_password);
+        loadValue(R.id.editTextPrivateKey, R.string.private_key);
+        loadValue(R.id.editTextPublicKey, R.string.public_key);
+        loadValue(R.id.editTextBotToken, R.string.bot_token);
+        loadValue(R.id.editTextBotChatId, R.string.bot_chat_id);
     }
 
     public void onSaveSettings(View view) {
-        saveKeyValue(this, R.string.emails, Utils.join("\n", this.getEmails()));
-        saveKeyValue(this, R.string.email_source, this.getEmailSource());
-        saveKeyValue(this, R.string.email_password, this.getEmailPassword());
-        saveKeyValue(this, R.string.private_key, this.getPrivateKey());
-        saveKeyValue(this, R.string.public_key, this.getPublicKey());
-        saveKeyValue(this, R.string.bot_token, this.getBotToken());
-        saveKeyValue(this, R.string.bot_chat_id, this.getBotChatId());
+        saveValue(R.string.emails, Utils.join("\n", this.getEmails()));
+        saveValue(R.string.email_source, this.getEmailSource());
+        saveValue(R.string.email_password, this.getEmailPassword());
+        saveValue(R.string.private_key, this.getPrivateKey());
+        saveValue(R.string.public_key, this.getPublicKey());
+        saveValue(R.string.bot_token, this.getBotToken());
+        saveValue(R.string.bot_chat_id, this.getBotChatId());
     }
 
     public void onCopyPrivateKey(View view) {
@@ -275,5 +166,27 @@ public class MainActivity extends AppCompatActivity {
         ClipData clip = ClipData.newPlainText("", this.getPrivateKey());
 
         clipboard.setPrimaryClip(clip);
+    }
+
+    public void onStart(View view) {
+        Button btnStart = findViewById(R.id.buttonStart);
+
+        this.started = !this.started;
+
+        if (this.started) {
+            Intent intent = new Intent(MainActivity.this, MainService.class);
+            intent.putExtra("settings", (Serializable)this.settings);
+            startService(intent);
+            btnStart.setText(R.string.button_stop);
+        } else {
+            stopService(new Intent(MainActivity.this, MainService.class));
+            btnStart.setText(R.string.button_start);
+        }
+    }
+
+    @Override
+    public void onDestroy() {
+        stopService(new Intent(MainActivity.this, MainService.class));
+        super.onDestroy();
     }
 }

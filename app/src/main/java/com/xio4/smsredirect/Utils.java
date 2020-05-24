@@ -1,5 +1,6 @@
 package com.xio4.smsredirect;
 
+import android.app.Application;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.util.Base64;
@@ -32,19 +33,20 @@ public class Utils {
             }
             stringBuilder.append(strArray[i]);
         }
+
         return stringBuilder.toString();
     }
 
-    public static final String loadValueByKey(AppCompatActivity activity, final int key) {
-        SharedPreferences sharedPref = activity.getPreferences(Context.MODE_PRIVATE);
+    public static final String loadValueByKey(Context context, final int key) {
+        SharedPreferences sharedPref = context.getSharedPreferences(Constants.SHARED_PREFERENCES_NAME, Context.MODE_PRIVATE);
 
-        return sharedPref.getString(activity.getString(key), "");
+        return sharedPref.getString(context.getString(key), "");
     }
 
-    public static final void saveKeyValue(AppCompatActivity activity, final int key, final String value) {
-        SharedPreferences sharedPref = activity.getPreferences(Context.MODE_PRIVATE);
+    public static final void saveKeyValue(Context context, final int key, final String value) {
+        SharedPreferences sharedPref = context.getSharedPreferences(Constants.SHARED_PREFERENCES_NAME, Context.MODE_PRIVATE);
         SharedPreferences.Editor editor = sharedPref.edit();
-        editor.putString(activity.getString(key), value);
+        editor.putString(context.getString(key), value);
         editor.commit();
     }
 
@@ -59,6 +61,7 @@ public class Utils {
         } catch (GeneralSecurityException e) {
             e.printStackTrace();
         }
+
         return publicKey;
     }
 
@@ -73,11 +76,13 @@ public class Utils {
         } catch (GeneralSecurityException e) {
             e.printStackTrace();
         }
+
         return privateKey;
     }
 
     public static final String getTextFromEditText(AppCompatActivity activity, int id) {
         EditText editText = activity.findViewById(id);
+
         return editText.getText().toString();
     }
 
@@ -88,19 +93,19 @@ public class Utils {
 
     public static String getDate(String milliSeconds, String dateFormat) {
         SimpleDateFormat formatter = new SimpleDateFormat(dateFormat);
-
         Calendar calendar = Calendar.getInstance();
         calendar.setTimeInMillis(Long.valueOf(milliSeconds));
+
         return formatter.format(calendar.getTime());
     }
 
     public static final String RSADecryptFromBase64(final String b64text, final PrivateKey privateKey) throws NoSuchAlgorithmException, NoSuchPaddingException,
             InvalidKeyException, IllegalBlockSizeException, BadPaddingException {
         Cipher cipher1 = Cipher.getInstance(Constants.RSA_ALGORYTHM);
-
         cipher1.init(Cipher.DECRYPT_MODE, privateKey);
         byte[] decryptedBytes = cipher1.doFinal(Base64.decode(b64text, Base64.DEFAULT));
         String decrypted = new String(decryptedBytes);
+
         return decrypted;
     }
 
@@ -109,7 +114,6 @@ public class Utils {
         Cipher cipher = Cipher.getInstance(Constants.RSA_ALGORYTHM);
         cipher.init(Cipher.ENCRYPT_MODE, publicKey);
         byte[] encryptedBytes = cipher.doFinal(plain.getBytes());
-
         String encrypted = Base64.encodeToString(encryptedBytes, 0, encryptedBytes.length, Base64.DEFAULT);
 
         return encrypted;

@@ -10,4 +10,6 @@
     <string name="copy_private_key">Copy private key</string>
     <string name="bot_token">Telegram bot token</string>
     <string name="bot_chat_id">Telegram bot chatId</string>
+    <string name="button_start">Start</string>
+    <string name="button_stop">Stop</string>
 </resources>

@@ -12,6 +12,8 @@ public class Constants {
         put("_id", "id");
     }};
 
-    public static final String DATE_TIME_FORMAT = "dd.MM.yyyy hh:mm:ss";
+    public static final String LOG_TAG = "SmsRedirect";
+    public static final String DATE_TIME_FORMAT = "dd.MM.yyyy HH:mm:ss";
     public static final String RSA_ALGORYTHM ="RSA/ECB/PKCS1Padding";
+    public static final String SHARED_PREFERENCES_NAME = "smsredirect";
 }
