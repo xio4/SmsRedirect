@@ -1,0 +1,13 @@
+<resources>
+    <string name="app_name">SmsRedirect</string>
+    <string name="emails">Emails</string>
+    <string name="email_source">Email source</string>
+    <string name="email_password">Email password</string>
+    <string name="private_key">Private key</string>
+    <string name="public_key">Public key</string>
+    <string name="save">Save</string>
+    <string name="last_sent">Last sent</string>
+    <string name="copy_private_key">Copy private key</string>
+    <string name="bot_token">Telegram bot token</string>
+    <string name="bot_chat_id">Telegram bot chatId</string>
+</resources>
